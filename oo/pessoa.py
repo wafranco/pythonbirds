@@ -15,6 +15,10 @@ if __name__ == '__main__':
     for filho in mozart.filhos:
         print(filho.nome)
         print(filho.idade)
+    mozart.sobrenome='Franco'
+    del mozart.sobrenome
+    print(mozart.__dict__)
+    print(walter.__dict__)
 
 #    p = Pessoa('Patrícia')
 #    print(Pessoa.cumprimentar(p))
