@@ -1,0 +1,224 @@
+Index: testes/integracao.py
+===================================================================
+--- testes/integracao.py	(revision fb6346d9014a5725f8362f1158f8e66add00b637)
++++ testes/testes_integracao.py	(date 1585495203085)
+Index: oo/teste_carro.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- oo/teste_carro.py	(date 1585956177322)
++++ oo/teste_carro.py	(date 1585956177322)
+@@ -0,0 +1,13 @@
++from unittest import TestCase
++
++from oo.carro import Motor
++
++class CarroTestCase(TestCase):
++    def teste_velocidade_inicial(self):
++        motor = Motor()
++        self.assertEqual(0, motor.velocidade)
++
++    def teste_acelerar(self):
++        motor = Motor()
++        motor.acelerar()
++        self.assertEqual(1, motor.velocidade)
+Index: atores.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- atores.py	(revision fb6346d9014a5725f8362f1158f8e66add00b637)
++++ atores.py	(date 1586096038410)
+@@ -38,7 +38,7 @@
+         :param tempo: o tempo do jogo
+         :return: posição x, y do ator
+         """
+-        return 1, 1
++        return self.x, self.y
+ 
+     def colidir(self, outro_ator, intervalo=1):
+         """
+@@ -52,16 +52,20 @@
+         :param intervalo: Intervalo a ser considerado
+         :return:
+         """
+-        pass
+-
++        if self.status == ATIVO and outro_ator.status == ATIVO:
++            delta_x = abs(self.x - outro_ator.x)
++            delta_y = abs(self.y - outro_ator.y)
++            if delta_x <= intervalo and delta_y <= intervalo:
++                self.status = outro_ator.status = DESTRUIDO
+ 
+ 
+ class Obstaculo(Ator):
+-    pass
++    _caracter_ativo = 'O'
+ 
+ 
+ class Porco(Ator):
+-    pass
++    _caracter_ativo = '@'
++    _caracter_destruido = '+'
+ 
+ 
+ class DuploLancamentoExcecao(Exception):
+@@ -93,7 +97,7 @@
+ 
+         :return: booleano
+         """
+-        return True
++        return not self._tempo_de_lancamento is None
+ 
+     def colidir_com_chao(self):
+         """
+@@ -101,7 +105,8 @@
+         o status dos Passaro deve ser alterado para destruido, bem como o seu caracter
+ 
+         """
+-        pass
++        if self.y <= 0:
++            self.status = DESTRUIDO
+ 
+     def calcular_posicao(self, tempo):
+         """
+@@ -117,8 +122,11 @@
+         :param tempo: tempo de jogo a ser calculada a posição
+         :return: posição x, y
+         """
+-        return 1, 1
+-
++        if self._esta_voando():
++            delta_t = tempo - self._tempo_de_lancamento
++            self._calcular_posicao_vertical(delta_t)
++            self._calcular_posicao_horizontal(delta_t)
++        return super().calcular_posicao(tempo)
+ 
+     def lancar(self, angulo, tempo_de_lancamento):
+         """
+@@ -129,12 +137,33 @@
+         :param tempo_de_lancamento:
+         :return:
+         """
+-        pass
++        self._angulo_de_lancamento = math.radians(angulo)
++        self._tempo_de_lancamento = tempo_de_lancamento
++
++    def _calcular_posicao_vertical(self, delta_t):
++        y_atual = self._y_inicial
++        angulo_radianos = self._angulo_de_lancamento
++        y_atual += self.velocidade_escalar * delta_t * math.sin(angulo_radianos)
++        y_atual -= (GRAVIDADE * (delta_t ** 2)) / 2
++        self.y = y_atual
++
++    def _calcular_posicao_horizontal(self, delta_t):
++        x_atual = self._x_inicial
++        angulo_radianos = self._angulo_de_lancamento
++        x_atual = self.velocidade_escalar * delta_t * math.cos(angulo_radianos)
++        self.x = x_atual
++
++    def _esta_voando(self):
++        return self.foi_lancado() and self.status == ATIVO
+ 
+ 
+ class PassaroAmarelo(Passaro):
+-    pass
++    _caracter_ativo = 'A'
++    _caracter_destruido = 'a'
++    velocidade_escalar = 30
+ 
+ 
+ class PassaroVermelho(Passaro):
+-    pass
+\ No newline at end of file
++    _caracter_ativo = 'V'
++    _caracter_destruido = 'v'
++    velocidade_escalar = 20
+Index: testes/atores_testes.py
+===================================================================
+--- testes/atores_testes.py	(revision fb6346d9014a5725f8362f1158f8e66add00b637)
++++ testes/testes_atores.py	(date 1586128837279)
+Index: fase.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- fase.py	(revision fb6346d9014a5725f8362f1158f8e66add00b637)
++++ fase.py	(date 1586044089472)
+@@ -2,7 +2,6 @@
+ from itertools import chain
+ from atores import ATIVO
+ 
+-
+ VITORIA = 'VITORIA'
+ DERROTA = 'DERROTA'
+ EM_ANDAMENTO = 'EM_ANDAMENTO'
+@@ -36,7 +35,6 @@
+         self._porcos = []
+         self._obstaculos = []
+ 
+-
+     def adicionar_obstaculo(self, *obstaculos):
+         """
+         Adiciona obstáculos em uma fase
+@@ -73,7 +71,12 @@
+ 
+         :return:
+         """
+-        return EM_ANDAMENTO
++        if not self._possui_porco_ativo():
++            return VITORIA
++        elif self._possui_passaro_ativo():
++            return EM_ANDAMENTO
++        else:
++            return DERROTA
+ 
+     def lancar(self, angulo, tempo):
+         """
+@@ -86,8 +89,10 @@
+         :param angulo: ângulo de lançamento
+         :param tempo: Tempo de lançamento
+         """
+-        pass
+-
++        for passaro in self._passaros:
++            if not passaro.foi_lancado():
++                passaro.lancar(angulo, tempo)
++                break
+ 
+     def calcular_pontos(self, tempo):
+         """
+@@ -98,10 +103,27 @@
+         :param tempo: tempo para o qual devem ser calculados os pontos
+         :return: objeto do tipo Ponto
+         """
+-        pontos=[self._transformar_em_ponto(a) for a in self._passaros+self._obstaculos+self._porcos]
++        for passaro in self._passaros:
++            passaro.calcular_posicao(tempo)
++            for alvo in self._obstaculos+self._porcos:
++                passaro.colidir(alvo, self.intervalo_de_colisao)
++            passaro.colidir_com_chao()
++        pontos = [self._transformar_em_ponto(a) for a in self._passaros + self._obstaculos + self._porcos]
+ 
+         return pontos
+ 
+     def _transformar_em_ponto(self, ator):
+         return Ponto(ator.x, ator.y, ator.caracter())
+ 
++    def _possui_porco_ativo(self):
++        for porco in self._porcos:
++            if porco.status == ATIVO:
++                return True
++        return False
++
++    def _possui_passaro_ativo(self):
++        for passaro in self._passaros:
++            if passaro.status == ATIVO:
++                return True
++        return False
++
+Index: testes/fase_testes.py
+===================================================================
+--- testes/fase_testes.py	(revision fb6346d9014a5725f8362f1158f8e66add00b637)
++++ testes/testes_fase.py	(date 1585495203085)
